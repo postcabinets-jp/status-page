@@ -1,36 +1,135 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# StatusPage OSS
 
-## Getting Started
+Open-source alternative to Instatus. Free, self-hosted status pages with incident management, uptime tracking, and email subscriptions.
 
-First, run the development server:
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/postcabinets-jp/status-page&env=NEXT_PUBLIC_SUPABASE_URL,NEXT_PUBLIC_SUPABASE_ANON_KEY&envDescription=Supabase%20project%20credentials&project-name=status-page&repository-name=status-page)
+
+## Features
+
+- **Unlimited components** — No artificial limits on monitored services
+- **Incident lifecycle** — Investigating → Identified → Monitoring → Resolved with timestamped updates
+- **Maintenance windows** — Schedule planned downtime in advance (Instatus charges $49/mo for this)
+- **90-day uptime bars** — Per-component uptime history visualization
+- **Email subscriptions** — Users subscribe for incident/maintenance notifications
+- **Public status page** — Clean, shareable `/s/[slug]` URL
+- **Incident history** — Full timeline of past resolved incidents
+- **Row Level Security** — Supabase RLS ensures users can only access their own data
+
+## Tech Stack
+
+- **Next.js 15** (App Router, TypeScript strict)
+- **Supabase** (PostgreSQL + Auth + RLS)
+- **Tailwind CSS v4 + shadcn/ui**
+- **Vercel** deployment
+
+## Quick Start
+
+### 1. Clone and install
+
+```bash
+git clone https://github.com/postcabinets-jp/status-page
+cd status-page
+npm install
+```
+
+### 2. Set up Supabase
+
+1. Create a project at [supabase.com](https://supabase.com)
+2. Run the migration in `supabase/migrations/20260627000001_initial_schema.sql` via Supabase SQL Editor
+3. Copy your project URL and anon key
+
+### 3. Configure environment
+
+```bash
+cp .env.example .env.local
+# Edit .env.local with your Supabase credentials
+```
+
+```
+NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
+NEXT_PUBLIC_APP_URL=http://localhost:3000
+```
+
+### 4. Run locally
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000)
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Deploy to Vercel
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Click the deploy button above or:
 
-## Learn More
+```bash
+vercel --prod
+```
 
-To learn more about Next.js, take a look at the following resources:
+Set these environment variables in your Vercel project settings:
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+- `NEXT_PUBLIC_APP_URL` (your Vercel deployment URL)
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Database Schema
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+All tables use RLS with public read access and owner-only write access. See `supabase/migrations/` for the full schema.
 
-## Deploy on Vercel
+| Table | Purpose |
+|---|---|
+| `pages` | Status pages (one per service) |
+| `components` | Services being monitored |
+| `incidents` | Active and historical incidents |
+| `incident_updates` | Timestamped status updates |
+| `incident_components` | Affected components per incident |
+| `maintenances` | Scheduled maintenance windows |
+| `subscribers` | Email notification subscribers |
+| `uptime_records` | Daily uptime history per component |
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Project Structure
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```
+src/
+├── app/
+│   ├── (auth)/          # Login, register, forgot-password
+│   ├── (dashboard)/     # Admin dashboard (protected)
+│   │   └── dashboard/
+│   │       └── [pageId]/
+│   │           ├── incidents/
+│   │           ├── maintenance/
+│   │           └── settings/
+│   ├── s/[slug]/        # Public status pages
+│   │   └── history/     # Incident history
+│   └── actions/         # Server Actions
+├── components/
+│   ├── auth/
+│   ├── dashboard/
+│   └── status/
+├── lib/
+│   ├── supabase/        # Client, server, middleware
+│   └── status.ts        # Status config & utilities
+└── types/
+    └── database.ts      # Supabase type definitions
+```
+
+## vs. Instatus
+
+| Feature | StatusPage OSS | Instatus Starter |
+|---|---|---|
+| Price | Free | $15/mo |
+| Components | Unlimited | 25 max |
+| Incident management | Yes | Yes |
+| Maintenance windows | Yes | Business plan ($49/mo) |
+| Email subscriptions | Yes | Limited |
+| 90-day uptime history | Yes | Yes |
+| Data ownership | Full (your Supabase DB) | Instatus servers |
+| Open-source | MIT | No |
+
+## License
+
+MIT
+
+---
+
+Built by [POST CABINETS](https://postcabinets.co.jp) — Web & SNS Marketing, Tokyo

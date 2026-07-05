@@ -2,18 +2,32 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import {
+  createMaintenanceSchema,
+  updateMaintenanceSchema,
+  maintenanceStatusEnum,
+  subscribeSchema,
+  parseFormData,
+} from "@/lib/validations";
 
 export async function createMaintenance(pageId: string, formData: FormData) {
+  const parsed = parseFormData(createMaintenanceSchema, formData);
+  if (!parsed.success) return { error: parsed.error };
+
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
   if (!user) return { error: "Unauthorized" };
+
+  const { title, description, scheduled_start, scheduled_end } = parsed.data;
 
   const { error } = await supabase.from("maintenances").insert({
     page_id: pageId,
-    title: formData.get("title") as string,
-    description: (formData.get("description") as string) || null,
-    scheduled_start: formData.get("scheduled_start") as string,
-    scheduled_end: formData.get("scheduled_end") as string,
+    title,
+    description: description || null,
+    scheduled_start,
+    scheduled_end,
     status: "scheduled",
   });
 
@@ -23,11 +37,37 @@ export async function createMaintenance(pageId: string, formData: FormData) {
   return { success: true };
 }
 
-type MaintenanceStatus = "scheduled" | "in_progress" | "completed";
+export async function updateMaintenance(
+  pageId: string,
+  maintenanceId: string,
+  formData: FormData
+) {
+  const parsed = parseFormData(updateMaintenanceSchema, formData);
+  if (!parsed.success) return { error: parsed.error };
 
-function toMaintenanceStatus(value: string): MaintenanceStatus {
-  const valid: MaintenanceStatus[] = ["scheduled", "in_progress", "completed"];
-  return valid.includes(value as MaintenanceStatus) ? (value as MaintenanceStatus) : "scheduled";
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Unauthorized" };
+
+  const { title, description, scheduled_start, scheduled_end, status } = parsed.data;
+
+  const { error } = await supabase
+    .from("maintenances")
+    .update({
+      title,
+      description: description || null,
+      scheduled_start,
+      scheduled_end,
+      status,
+    })
+    .eq("id", maintenanceId);
+
+  if (error) return { error: error.message };
+
+  revalidatePath(`/dashboard/${pageId}/maintenance`);
+  return { success: true };
 }
 
 export async function updateMaintenanceStatus(
@@ -35,13 +75,18 @@ export async function updateMaintenanceStatus(
   maintenanceId: string,
   status: string
 ) {
+  const parsed = maintenanceStatusEnum.safeParse(status);
+  if (!parsed.success) return { error: "Invalid status" };
+
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
   if (!user) return { error: "Unauthorized" };
 
   const { error } = await supabase
     .from("maintenances")
-    .update({ status: toMaintenanceStatus(status) })
+    .update({ status: parsed.data })
     .eq("id", maintenanceId);
 
   if (error) return { error: error.message };
@@ -52,7 +97,9 @@ export async function updateMaintenanceStatus(
 
 export async function deleteMaintenance(pageId: string, maintenanceId: string) {
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
   if (!user) return { error: "Unauthorized" };
 
   const { error } = await supabase
@@ -67,17 +114,24 @@ export async function deleteMaintenance(pageId: string, maintenanceId: string) {
 }
 
 export async function subscribeToPage(pageId: string, formData: FormData) {
+  const parsed = parseFormData(subscribeSchema, formData);
+  if (!parsed.success) return { error: parsed.error };
+
   const supabase = await createClient();
-  const email = formData.get("email") as string;
+  const { email } = parsed.data;
 
   const { error } = await supabase
     .from("subscribers")
     .insert({ page_id: pageId, email });
 
   if (error) {
-    if (error.code === "23505") return { error: "This email is already subscribed." };
+    if (error.code === "23505")
+      return { error: "This email is already subscribed." };
     return { error: error.message };
   }
 
-  return { success: "Subscribed! You will receive notifications for this status page." };
+  return {
+    success:
+      "Subscribed! You will receive notifications for this status page.",
+  };
 }

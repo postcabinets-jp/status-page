@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { createPageSchema, updatePageSchema, parseFormData } from "@/lib/validations";
 
 function slugify(text: string): string {
   return text
@@ -13,23 +14,32 @@ function slugify(text: string): string {
 }
 
 export async function createPage(formData: FormData) {
+  const parsed = parseFormData(createPageSchema, formData);
+  if (!parsed.success) return { error: parsed.error };
+
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
   if (!user) return { error: "Unauthorized" };
 
-  const name = formData.get("name") as string;
-  const rawSlug = formData.get("slug") as string;
+  const { name, slug: rawSlug, description } = parsed.data;
   const slug = slugify(rawSlug || name);
-  const description = (formData.get("description") as string) || null;
 
   const { data, error } = await supabase
     .from("pages")
-    .insert({ user_id: user.id, name, slug, description })
+    .insert({
+      user_id: user.id,
+      name,
+      slug,
+      description: description || null,
+    })
     .select()
     .single();
 
   if (error) {
-    if (error.code === "23505") return { error: "This URL is already taken. Choose a different one." };
+    if (error.code === "23505")
+      return { error: "This URL is already taken. Choose a different one." };
     return { error: error.message };
   }
 
@@ -38,16 +48,20 @@ export async function createPage(formData: FormData) {
 }
 
 export async function updatePage(pageId: string, formData: FormData) {
+  const parsed = parseFormData(updatePageSchema, formData);
+  if (!parsed.success) return { error: parsed.error };
+
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
   if (!user) return { error: "Unauthorized" };
 
-  const name = formData.get("name") as string;
-  const description = (formData.get("description") as string) || null;
+  const { name, description } = parsed.data;
 
   const { error } = await supabase
     .from("pages")
-    .update({ name, description })
+    .update({ name, description: description || null })
     .eq("id", pageId)
     .eq("user_id", user.id);
 
@@ -60,7 +74,9 @@ export async function updatePage(pageId: string, formData: FormData) {
 
 export async function deletePage(pageId: string) {
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
   if (!user) return { error: "Unauthorized" };
 
   const { error } = await supabase

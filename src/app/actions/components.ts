@@ -2,17 +2,21 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-
-type ComponentStatus = "operational" | "degraded" | "partial_outage" | "major_outage" | "maintenance";
-
-function toComponentStatus(value: string | null): ComponentStatus {
-  const valid: ComponentStatus[] = ["operational", "degraded", "partial_outage", "major_outage", "maintenance"];
-  return valid.includes(value as ComponentStatus) ? (value as ComponentStatus) : "operational";
-}
+import {
+  createComponentSchema,
+  updateComponentSchema,
+  componentStatusEnum,
+  parseFormData,
+} from "@/lib/validations";
 
 export async function createComponent(pageId: string, formData: FormData) {
+  const parsed = parseFormData(createComponentSchema, formData);
+  if (!parsed.success) return { error: parsed.error };
+
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
   if (!user) return { error: "Unauthorized" };
 
   const { data: page } = await supabase
@@ -23,12 +27,14 @@ export async function createComponent(pageId: string, formData: FormData) {
     .single();
   if (!page) return { error: "Page not found" };
 
+  const { name, description, group_name, status } = parsed.data;
+
   const { error } = await supabase.from("components").insert({
     page_id: pageId,
-    name: formData.get("name") as string,
-    description: (formData.get("description") as string) || null,
-    group_name: (formData.get("group_name") as string) || null,
-    status: toComponentStatus(formData.get("status") as string | null),
+    name,
+    description: description || null,
+    group_name: group_name || null,
+    status,
   });
 
   if (error) return { error: error.message };
@@ -42,11 +48,15 @@ export async function updateComponentStatus(
   componentId: string,
   status: string
 ) {
+  const parsed = componentStatusEnum.safeParse(status);
+  if (!parsed.success) return { error: "Invalid status" };
+
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
   if (!user) return { error: "Unauthorized" };
 
-  // Verify ownership via page
   const { data: component } = await supabase
     .from("components")
     .select("id, page_id")
@@ -64,7 +74,7 @@ export async function updateComponentStatus(
 
   const { error } = await supabase
     .from("components")
-    .update({ status: toComponentStatus(status) })
+    .update({ status: parsed.data })
     .eq("id", componentId);
 
   if (error) return { error: error.message };
@@ -78,17 +88,24 @@ export async function updateComponent(
   componentId: string,
   formData: FormData
 ) {
+  const parsed = parseFormData(updateComponentSchema, formData);
+  if (!parsed.success) return { error: parsed.error };
+
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
   if (!user) return { error: "Unauthorized" };
+
+  const { name, description, group_name, status } = parsed.data;
 
   const { error } = await supabase
     .from("components")
     .update({
-      name: formData.get("name") as string,
-      description: (formData.get("description") as string) || null,
-      group_name: (formData.get("group_name") as string) || null,
-      status: toComponentStatus(formData.get("status") as string | null),
+      name,
+      description: description || null,
+      group_name: group_name || null,
+      status,
     })
     .eq("id", componentId);
 
@@ -100,7 +117,9 @@ export async function updateComponent(
 
 export async function deleteComponent(pageId: string, componentId: string) {
   const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
   if (!user) return { error: "Unauthorized" };
 
   const { error } = await supabase

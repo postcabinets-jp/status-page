@@ -3,13 +3,22 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import {
+  signInSchema,
+  signUpSchema,
+  resetPasswordSchema,
+  parseFormData,
+} from "@/lib/validations";
 
 export async function signIn(formData: FormData) {
+  const parsed = parseFormData(signInSchema, formData);
+  if (!parsed.success) return { error: parsed.error };
+
   const supabase = await createClient();
 
   const { error } = await supabase.auth.signInWithPassword({
-    email: formData.get("email") as string,
-    password: formData.get("password") as string,
+    email: parsed.data.email,
+    password: parsed.data.password,
   });
 
   if (error) {
@@ -21,11 +30,14 @@ export async function signIn(formData: FormData) {
 }
 
 export async function signUp(formData: FormData) {
+  const parsed = parseFormData(signUpSchema, formData);
+  if (!parsed.success) return { error: parsed.error };
+
   const supabase = await createClient();
 
   const { error } = await supabase.auth.signUp({
-    email: formData.get("email") as string,
-    password: formData.get("password") as string,
+    email: parsed.data.email,
+    password: parsed.data.password,
   });
 
   if (error) {
@@ -43,11 +55,14 @@ export async function signOut() {
 }
 
 export async function resetPassword(formData: FormData) {
+  const parsed = parseFormData(resetPasswordSchema, formData);
+  if (!parsed.success) return { error: parsed.error };
+
   const supabase = await createClient();
   const origin = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
 
   const { error } = await supabase.auth.resetPasswordForEmail(
-    formData.get("email") as string,
+    parsed.data.email,
     { redirectTo: `${origin}/auth/callback?next=/update-password` }
   );
 

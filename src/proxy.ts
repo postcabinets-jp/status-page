@@ -23,7 +23,7 @@ function rateLimit(ip: string): boolean {
 // ── End Rate Limiting ──
 
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   // Rate limit /api/* routes
   if (request.nextUrl.pathname.startsWith('/api/')) {
     const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
